@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 import lpips
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 def glaze(x, x_trans, model, p=0.1, alpha=0.1, iters=500, lr=0.002):
     # x_adv = x.clone().detach()  + (torch.rand(*x.shape) * 2 * p - p).to(x.device)
@@ -11,6 +12,7 @@ def glaze(x, x_trans, model, p=0.1, alpha=0.1, iters=500, lr=0.002):
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam([delta], lr=lr)
     loss_fn_alex = lpips.LPIPS(net='vgg').to(x.device)
+    writer = SummaryWriter('runs/experiment_name')
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, iters, eta_min=0.001)
     for i in pbar:
         # x_adv_image = x.clone().detach()
@@ -31,8 +33,12 @@ def glaze(x, x_trans, model, p=0.1, alpha=0.1, iters=500, lr=0.002):
         optimizer.step()
         # scheduler.step()
         pbar.set_description(f"[Running glaze]: Loss {loss.item():.5f} | sim loss {alpha * max(d.item()-p, 0):.5f} | dist {d.item():.5f}")
+        writer.add_scalar('loss/sim_loss', sim_loss.item(), i)
+        writer.add_scalar('lpips_dist', d.item(), i)
+        writer.add_scalar('loss/feature_loss', loss.item(), i)
     x_adv = x + delta
     x_adv.data = torch.clamp(x_adv, min=-1.0, max=1.0)
+    writer.close()
     return x_adv
 
 
